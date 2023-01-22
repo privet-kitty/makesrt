@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "makesrt"
+version = "0.1.0"
+description = "Transcribe speech from video and make an srt file"
+authors = ["Hugo Sansaqua <privet.kitty99@gmail.com>"]
+license = "MPL-2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pvleopard = "^1.1.4"
+ffmpeg-python = "^0.2.0"
+
+[tool.poetry.group.dev.dependencies]
+poethepoet = "^0.18.1"
+black = "^22.12.0"
+mypy = "^0.991"
+flake8 = "^6.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poe.tasks]
+srt = "python -m makesrt"
