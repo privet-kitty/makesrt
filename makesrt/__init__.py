@@ -79,12 +79,12 @@ def main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("path")
-    parser.add_argument("--output", "-o")
+    parser.add_argument("--output", "-o", help="output path")
     args = parser.parse_args()
 
     input_path = args.path
     mp3path = os.path.join(tempfile.mkdtemp(), "audio.mp3")
-    # HACK: write it as an mp3 file to reduce the size of stream.
+    # HACK: write audio as an mp3 file to reduce size.
     # (But can't pvleopard deal with mp3 data via stream?)
     stream = ffmpeg.input(input_path).output(mp3path, format="mp3")
     ffmpeg.run(stream)
