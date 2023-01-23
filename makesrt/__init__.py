@@ -7,10 +7,6 @@ import tempfile
 import sys
 
 
-mp3path = os.path.join(tempfile.mkdtemp(), "audio.mp3")
-print(mp3path, file=sys.stderr)
-
-
 def second_to_timecode(x: float) -> str:
     hour, x = divmod(x, 3600)
     minute, x = divmod(x, 60)
@@ -20,7 +16,7 @@ def second_to_timecode(x: float) -> str:
     return "%.2d:%.2d:%.2d,%.3d" % (hour, minute, second, millisecond)
 
 
-section_extra_secs = 0.5
+SECTION_END_EXTRA_SECS = 0.5
 
 
 def to_srt(
@@ -30,10 +26,10 @@ def to_srt(
 ) -> str:
     lines: list[str] = list()
 
-    def _add_section(start: int, end: int) -> None:
+    def _add_section(section: int, start: int, end: int) -> None:
         """start is inclusive while end is exclusive."""
         start_sec = words[start].start_sec
-        end_sec = words[end - 1].end_sec + section_extra_secs
+        end_sec = words[end - 1].end_sec + SECTION_END_EXTRA_SECS
         if end < len(words):
             end_sec = min(end_sec, words[end].start_sec)
         lines.append(f"{section}")
@@ -45,39 +41,64 @@ def to_srt(
 
     section = 0
     start = 0
-    for k in range(1, len(words)):
-        if ((words[k].start_sec - words[k - 1].end_sec) >= endpoint_sec) or (
-            length_limit is not None and (k - start) >= length_limit
+    for end in range(1, len(words)):
+        if ((words[end].start_sec - words[end - 1].end_sec) >= endpoint_sec) or (
+            length_limit is not None and (end - start) >= length_limit
         ):
-            _add_section(start, k)
-            start = k
+            _add_section(section, start, end)
+            start = end
             section += 1
-    _add_section(start, len(words))
+    _add_section(section, start, len(words))
 
     return "\n".join(lines)
 
 
-with open(".access_key") as f:
-    picovoice_key = f.read()
-
-parser = argparse.ArgumentParser()
-parser.add_argument("path")
-parser.add_argument("--output", "-o")
-args = parser.parse_args()
-
-input_path = args.path
+ACCESS_KEY_FILE = ".picovoice_access_key"
 
 
-stream = ffmpeg.input(input_path).output(mp3path, format="mp3")
-ffmpeg.run(stream)
+def find_access_key() -> str:
+    def read_file(path: str) -> Optional[str]:
+        if os.path.exists(path):
+            with open(path) as f:
+                return f.read()
+        else:
+            return None
+
+    key = (
+        os.getenv("PICOVOICE_ACCESS_KEY")
+        or read_file(os.path.expanduser(f"~/{ACCESS_KEY_FILE}"))
+        or read_file(f"./{ACCESS_KEY_FILE}")
+    )
+    if key is None:
+        raise ValueError("Couldn't find access key to picovoice")
+    return key
 
 
-leopard = pvleopard.create(access_key=picovoice_key)
-transcript, words = leopard.process_file(mp3path)
-srt = to_srt(words, 0.5)
+def main() -> None:
+    picovoice_key = find_access_key()
 
-if args.output is None:
-    print(srt, file=sys.stdout)
-else:
-    with open(args.output, mode="w") as f:
-        print(srt, file=f)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path")
+    parser.add_argument("--output", "-o")
+    args = parser.parse_args()
+
+    input_path = args.path
+    mp3path = os.path.join(tempfile.mkdtemp(), "audio.mp3")
+    # HACK: write it as an mp3 file to reduce the size of stream.
+    # (But can't pvleopard deal with mp3 data via stream?)
+    stream = ffmpeg.input(input_path).output(mp3path, format="mp3")
+    ffmpeg.run(stream)
+
+    leopard = pvleopard.create(access_key=picovoice_key)
+    _, words = leopard.process_file(mp3path)
+    srt = to_srt(words, 0.5)
+
+    if args.output is None:
+        print(srt, file=sys.stdout)
+    else:
+        with open(args.output, mode="w") as f:
+            print(srt, file=f)
+
+
+if __name__ == "__main__":
+    main()

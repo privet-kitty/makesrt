@@ -23,3 +23,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
 srt = "python -m makesrt"
+
+[tool.poetry.scripts]
+makesrt = "makesrt:main"
